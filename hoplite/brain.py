@@ -119,8 +119,8 @@ class Brain:
             .11 * extract_distance_feature(game_state, game_state.terrain.stairs),
             .11 * extract_distance_feature(game_state, game_state.terrain.portal),
             .11 * extract_distance_feature(game_state, game_state.terrain.fleece),
-            .11 * extract_distance_feature(game_state, game_state.terrain.altar)
-            * int(game_state.terrain.altar_prayable),
+            # .11 * extract_distance_feature(game_state, game_state.terrain.altar)
+            # * int(game_state.terrain.altar_prayable),
             .11 * extract_distance_feature(game_state, game_state.terrain.spear)
             * (1 - int(game_state.status.spear)),
         ]

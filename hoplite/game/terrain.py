@@ -56,7 +56,7 @@ class SurfaceElement(enum.Enum):
     FOOTMAN = 2
     ARCHER = 3
     DEMOLITIONIST_HOLDING_BOMB = 4
-    DEMOLITIONIST_WITHOUT_BOMB = 5
+    DEMOLITIONIST_WITHOUT_BOMB_1 = 5
     WIZARD_CHARGED = 6
     WIZARD_DISCHARGED = 7
     SPEAR = 8
@@ -67,15 +67,16 @@ class SurfaceElement(enum.Enum):
     ALTAR_OFF = 13
     FLEECE = 14
     PORTAL = 15
+    DEMOLITIONIST_WITHOUT_BOMB_2 = 16
 
 
 SURFACE_ELEMENT_ENCODER = {
-    element: "0123456789abcdef"[element.value]
+    element: "0123456789abcdefg"[element.value]
     for element in SurfaceElement
 }
 
 SURFACE_ELEMENT_DECODER = {
-    "0123456789abcdef"[element.value]: element
+    "0123456789abcdefg"[element.value]: element
     for element in SurfaceElement
 }
 
@@ -111,8 +112,8 @@ class Terrain:  # pylint: disable=R0902
     def __init__(self):
         self.player = hoplite.utils.HexagonalCoordinates(0, -4)
         self.surface = dict()
-        self.demons = dict()
-        self.bombs = set()
+        self.demons:dict[hoplite.utils.HexagonalCoordinates,hoplite.game.demons.Demon] = dict()
+        self.bombs:set[hoplite.utils.HexagonalCoordinates] = set()
         self.spear = None
         self.altar = None
         self.altar_prayable = False
@@ -166,8 +167,12 @@ class Terrain:  # pylint: disable=R0902
                         result.append(
                             SurfaceElement.DEMOLITIONIST_HOLDING_BOMB)
                     else:
-                        result.append(
-                            SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB)
+                        if demon.cooldown == 2:
+                            result.append(
+                                SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_1)
+                        else:
+                            result.append(
+                                SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_2)
                 elif demon.skill == hoplite.game.demons.DemonSkill.WIZARD:
                     if demon.charged_wand:
                         result.append(SurfaceElement.WIZARD_CHARGED)
@@ -225,9 +230,9 @@ class Terrain:  # pylint: disable=R0902
             elif elt == SurfaceElement.ARCHER:
                 terrain.demons[pos] = hoplite.game.demons.Archer()
             elif elt == SurfaceElement.DEMOLITIONIST_HOLDING_BOMB:
-                terrain.demons[pos] = hoplite.game.demons.Demolitionist(True)
-            elif elt == SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB:
-                terrain.demons[pos] = hoplite.game.demons.Demolitionist(False)
+                terrain.demons[pos] = hoplite.game.demons.Demolitionist(0)
+            elif elt == SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_1:
+                terrain.demons[pos] = hoplite.game.demons.Demolitionist(2)
             elif elt == SurfaceElement.WIZARD_CHARGED:
                 terrain.demons[pos] = hoplite.game.demons.Wizard(True)
             elif elt == SurfaceElement.WIZARD_DISCHARGED:
@@ -250,6 +255,8 @@ class Terrain:  # pylint: disable=R0902
                 terrain.fleece = pos
             elif elt == SurfaceElement.PORTAL:
                 terrain.portal = pos
+            elif elt == SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_2:
+                terrain.demons[pos] = hoplite.game.demons.Demolitionist(1)
         return terrain
 
     def __repr__(self):
@@ -291,8 +298,8 @@ class Terrain:  # pylint: disable=R0902
         for pos in positions:
             if self.surface.get(pos) != Tile.GROUND:
                 continue
-            # if pos == self.altar:
-            #     continue
+            if pos == self.altar:  # lack of it breaks pathfinding
+                continue
             result.append(pos)
         return result
 
@@ -456,7 +463,9 @@ class TerrainRenderer:  # pylint: disable=R0903
                 Sprite("assets/archer.png"),
             SurfaceElement.DEMOLITIONIST_HOLDING_BOMB:
                 Sprite("assets/demolitionist_holding_bomb.png"),
-            SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB:
+            SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_1:
+                Sprite("assets/demolitionist_without_bomb.png"),
+            SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_2:
                 Sprite("assets/demolitionist_without_bomb.png"),
             SurfaceElement.WIZARD_CHARGED:
                 Sprite("assets/wizard_charged.png"),
@@ -521,7 +530,8 @@ class TerrainRenderer:  # pylint: disable=R0903
                     int(self.tile_width * column) + self.screen_width // 2,
                     int(-self.tile_height * row) + self.screen_height // 2,
                 )
-                draw_regular_polygon(range_surface, demon_color, 6, 32, position)
+                draw_regular_polygon(
+                    range_surface, demon_color, 6, 32, position)
             screen.blit(range_surface, (0, 0))
 
     def render(self, show_ranges=False):

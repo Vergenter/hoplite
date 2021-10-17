@@ -179,7 +179,11 @@ HEXAGONAL_DIRECTIONS = [
 ]
 
 
-def hexagonal_neighbors(pos):
+def hexagonal_distance(a: HexagonalCoordinates, b: HexagonalCoordinates) -> int:
+    return (abs(a.x - b.x) + abs(a.y - b.y) + abs(a.z - b.z)) / 2
+
+
+def hexagonal_neighbors(pos: HexagonalCoordinates):
     """Return the set of surrounding positions in an hexagonal grid.
 
     Parameters

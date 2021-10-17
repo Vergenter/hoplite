@@ -2,6 +2,7 @@
 """
 
 import enum
+from hoplite.game.state import GameState
 import hoplite.utils
 
 
@@ -124,15 +125,23 @@ class Demolitionist(Demon):  # pylint: disable=R0903
     """
     Demolitionist demon. Throws bombs.
     """
-
-    def __init__(self, holds_bomb=False):
+    COOLDOWN_AFTER_BOMB=2
+    def __init__(self, cooldown:int=0):
         Demon.__init__(self, DemonSkill.DEMOLITIONIST)
-        self.holds_bomb = holds_bomb
-        self.cooldown = 0
+        self.holds_bomb = not cooldown
+        self.cooldown = cooldown
+    
+    def throw_bomb(self):
+        self.cooldown = self.COOLDOWN_AFTER_BOMB
+        self.holds_bomb = False   
 
-    def attack(self, game_state, demon_pos):
-        self.cooldown = max(0, self.cooldown - 1)
+    def attack(self, game_state:'GameState', demon_pos):
+        if self.cooldown>0:
+            self.cooldown -= 1
+        else:
+            self.holds_bomb = True         
         return 0
+        
 
 
 class Wizard(Demon):  # pylint: disable=R0903

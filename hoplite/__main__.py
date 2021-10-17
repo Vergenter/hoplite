@@ -2,21 +2,21 @@
 """
 Hoplite game AI
 """
-
 import os
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
-import argparse
-import logging
-import hoplite
-import hoplite.utils
-import hoplite.game.terrain
-import hoplite.game.moves
-import hoplite.game.state
-import hoplite.vision.observer
-import hoplite.controller
-import hoplite.monkey_runner
-import hoplite.actuator
 import hoplite.brain
+import hoplite.actuator
+import hoplite.ppadb_runner
+import hoplite.controller
+import hoplite.vision.observer
+import hoplite.game.state
+import hoplite.game.moves
+import hoplite.game.terrain
+import hoplite.utils
+import hoplite
+import logging
+import argparse
+
 
 
 def check(path):
@@ -31,12 +31,15 @@ def check(path):
             continue
         if next_line.split("\t")[1] != "move":
             continue
-        prev_state = hoplite.game.state.GameState.from_string(prev_line.split("\t")[2])
-        groundtruth = hoplite.game.state.GameState.from_string(next_line.split("\t")[2])
+        prev_state = hoplite.game.state.GameState.from_string(
+            prev_line.split("\t")[2])
+        groundtruth = hoplite.game.state.GameState.from_string(
+            next_line.split("\t")[2])
         if prev_state.depth != groundtruth.depth:
             continue
         total += 1
-        move = hoplite.game.moves.PlayerMove.from_string(prev_line.split("\t")[3])
+        move = hoplite.game.moves.PlayerMove.from_string(
+            prev_line.split("\t")[3])
         prediction = move.apply(prev_state)
         prediction.status.cooldown = max(0, prediction.status.cooldown - 1)
         prediction_errors = list()
@@ -98,7 +101,8 @@ def parse(args):
     """Parse a game state to perform some analysis.
     """
     if os.path.isfile(args.input):
-        parser = hoplite.vision.observer.ScreenParser(save_parts=args.save_parts)
+        parser = hoplite.vision.observer.ScreenParser(
+            save_parts=args.save_parts)
         stream = parser.read_stream(args.input)
         interface = hoplite.vision.classifiers.interface(stream)
         if interface == hoplite.game.state.Interface.ALTAR:
@@ -110,7 +114,8 @@ def parse(args):
         game = hoplite.game.state.GameState.from_string(args.input)
     for prayer in args.prayers.strip().split(","):
         if prayer != "":
-            game.status.add_prayer(hoplite.game.status.Prayer(int(prayer)), False)
+            game.status.add_prayer(
+                hoplite.game.status.Prayer(int(prayer)), False)
     if "move_type" in args:
         move_class = {
             "walk": hoplite.game.moves.WalkMove,
@@ -118,7 +123,8 @@ def parse(args):
             "bash": hoplite.game.moves.BashMove,
             "throw": hoplite.game.moves.ThrowMove
         }[args.move_type]
-        player_move = move_class(hoplite.utils.HexagonalCoordinates(args.x, args.y))
+        player_move = move_class(
+            hoplite.utils.HexagonalCoordinates(args.x, args.y))
         game = player_move.apply(game)
     print(repr(game))
     if args.evaluate:
@@ -222,7 +228,8 @@ def main():
         help="move target y"
     )
     check_parser = subparsers.add_parser("check")
-    check_parser.add_argument("-i", "--input", type=str, help="path to the log file to check")
+    check_parser.add_argument(
+        "-i", "--input", type=str, help="path to the log file to check")
     args = parser.parse_args()
     log_level = logging.INFO
     if args.verbose:

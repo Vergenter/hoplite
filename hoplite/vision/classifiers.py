@@ -62,7 +62,7 @@ def terrain(part):
     if is_close(part[33, 28], [0.160784, 0.254902, 0.258824]):
         if is_close(part[8, 25], [0.741176, 0.141176, 0.192157]):
             return hoplite.game.terrain.SurfaceElement.FOOTMAN
-        return hoplite.game.terrain.SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB
+        return hoplite.game.terrain.SurfaceElement.DEMOLITIONIST_WITHOUT_BOMB_1
     if is_close(part[48, 26], [0.741176, 0.286275, 0.517647]):
         if is_close(part[0, 0], [0.741176, 0.141176, 0.192157]):
             return hoplite.game.terrain.SurfaceElement.WIZARD_CHARGED

@@ -4,6 +4,7 @@
 import enum
 import copy
 import logging
+import hoplite.game.demons
 import hoplite.utils
 import hoplite.game.terrain
 import hoplite.game.status
@@ -83,7 +84,8 @@ class GameState:
         state = cls()
         depth, terrain_string, status_string = string.split(";")
         state.depth = int(depth)
-        state.terrain = hoplite.game.terrain.Terrain.from_string(terrain_string)
+        state.terrain = hoplite.game.terrain.Terrain.from_string(
+            terrain_string)
         state.status = hoplite.game.status.Status.from_string(status_string)
         return state
 
@@ -98,7 +100,7 @@ class GameState:
         """
         return copy.deepcopy(self)
 
-    def update(self, new_state):
+    def update(self, new_state: 'GameState'):
         """Update the current state with a newly parsed one.
 
         Parameters
@@ -107,8 +109,17 @@ class GameState:
             New game state, recently parsed.
 
         """
+        # apply demolitionist cooldown
+        if self.depth == new_state.depth:
+            coords = {coord for coord,demon in new_state.terrain.demons.items() if isinstance(demon,hoplite.game.demons.Demolitionist) and not demon.holds_bomb}
+            had_no_bomb = {coord for coord in coords if not (demon:=self.terrain.demons.get(coord)) or (isinstance(demon,hoplite.game.demons.Demolitionist) and not demon.holds_bomb)}
+            for coord in had_no_bomb:
+                demon = new_state.terrain.demons[coord]
+                if isinstance(demon,hoplite.game.demons.Demolitionist):
+                    demon.cooldown=1
         self.depth = new_state.depth
         self.terrain = new_state.terrain
+        # demolisher should get updated state :(
         self.status.update(new_state.status)
 
     def apply_attacks(self, prev_state, attacks):
@@ -153,8 +164,8 @@ class GameState:
         if self.status.can_leap():
             for pos in hoplite.utils\
                     .hexagonal_circle(
-                            self.terrain.player,
-                            self.status.attributes.leap_distance)\
+                        self.terrain.player,
+                        self.status.attributes.leap_distance)\
                     .difference(hoplite.utils.hexagonal_circle(self.terrain.player, 1)):
                 if cannot_land_on(pos):
                     continue
@@ -199,7 +210,7 @@ class AltarState:  # pylint: disable=R0903
         self.prayers = dict()
 
     def __repr__(self):
-        return ",".join([str(prayer.value) for prayer in self.prayers])
+        return ",".join([str(prayer.value) for prayer in self.prayers if prayer])
 
     def __str__(self):
         return str(list(self.prayers.keys()))
