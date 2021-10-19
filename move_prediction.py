@@ -40,7 +40,8 @@ LOG_FILENAME = "game.log"
 class Action:
     source: HexagonalCoordinates
     destination: HexagonalCoordinates
-    def apply(self,gamestate:hoplite.game.state.GameState):
+
+    def apply(self, gamestate: hoplite.game.state.GameState):
         return gamestate
 
     def __hash__(self):
@@ -50,34 +51,40 @@ class Action:
 class Wait(Action):
     def __init__(self, position: HexagonalCoordinates):
         super().__init__(position, position)
-    def apply(self,gamestate:hoplite.game.state.GameState):
+
+    def apply(self, gamestate: hoplite.game.state.GameState):
+        gamestate.terrain.demons[self.source].not_attack()
         return gamestate
 
 
 class Attack(Action):
     def __init__(self, position: HexagonalCoordinates):
         super().__init__(position, position)
-    def apply(self,gamestate:hoplite.game.state.GameState):
+
+    def apply(self, gamestate: hoplite.game.state.GameState):
+        if isinstance((x := gamestate.terrain.demons[self.source]), hoplite.game.demons.Wizard):
+            x.throw_spell()
         return gamestate
 
 
 class Walk(Action):
-    def apply(self,gamestate:hoplite.game.state.GameState):
-        gamestate.terrain.demons[self.destination]=gamestate.terrain.demons[self.source]
+    def apply(self, gamestate: hoplite.game.state.GameState):
+        gamestate.terrain.demons[self.source].not_attack()
+        gamestate.terrain.demons[self.destination] = gamestate.terrain.demons[self.source]
         gamestate.terrain.demons.pop(self.source)
         return gamestate
 
 
 class Bomb(Action):
-    def apply(self,gamestate:hoplite.game.state.GameState):
-        if isinstance((x :=gamestate.terrain.demons[self.source]),hoplite.game.demons.Demolitionist):
+    def apply(self, gamestate: hoplite.game.state.GameState):
+        if isinstance((x := gamestate.terrain.demons[self.source]), hoplite.game.demons.Demolitionist):
             x.throw_bomb()
         gamestate.terrain.bombs.add(self.destination)
         return gamestate
 
-def apply_actions(gamestate:hoplite.game.state.GameState,actions:set[frozenset[Action]]):
-    return {functools.reduce(lambda state,action:action.apply(state),action_set,gamestate.copy()) for action_set in actions}
 
+def apply_actions(gamestate: hoplite.game.state.GameState, actions: set[frozenset[Action]]):
+    return {functools.reduce(lambda state, action: action.apply(state), action_set, gamestate.copy()) for action_set in actions}
 
 
 class Demon:
@@ -142,9 +149,9 @@ def demon_mapper(demon: hoplite.game.demons.Demon, position: HexagonalCoordinate
     elif isinstance(demon, hoplite.game.demons.Archer):
         return Archer(position)
     elif isinstance(demon, hoplite.game.demons.Demolitionist):
-        return Demolitionist(position,demon.cooldown)
+        return Demolitionist(position, demon.cooldown)
     elif isinstance(demon, hoplite.game.demons.Wizard):
-        return Wizard(position,demon.charged_wand)
+        return Wizard(position, demon.charged_wand)
     raise ValueError("Incorrect hoplite.game.demons.Demon type!")
 
 # functions to define
@@ -172,9 +179,9 @@ def demon_mapper(demon: hoplite.game.demons.Demon, position: HexagonalCoordinate
 
 # is in shooting line
 # > has one coordinate same as target
-def get_hexes_by_axis(source:HexagonalCoordinates,target:HexagonalCoordinates):
+def get_hexes_by_axis(source: HexagonalCoordinates, target: HexagonalCoordinates):
     if source.x == target.x:
-        if source.y>target.y:
+        if source.y > target.y:
             return 6
         return 0
     if source.x < target.x:
@@ -196,99 +203,120 @@ def get_hexes_by_axis(source:HexagonalCoordinates,target:HexagonalCoordinates):
     if source.z == target.z:
         return 10
     return 11
-keep_radius_offsets =  np.array([
-    {HexagonalCoordinates(-1,1),HexagonalCoordinates(1,0)},
-    {HexagonalCoordinates(-1,1),HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(0,1),HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(0,1),HexagonalCoordinates(0,-1)},
-    {HexagonalCoordinates(1,0),HexagonalCoordinates(0,-1)},
-    {HexagonalCoordinates(1,0),HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(1,-1),HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(1,-1),HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(0,-1),HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(0,-1),HexagonalCoordinates(0,1)},
-    {HexagonalCoordinates(-1,0),HexagonalCoordinates(0,1)},
-    {HexagonalCoordinates(-1,0),HexagonalCoordinates(1,0)}
-    ],dtype=object)
 
-def keep_radius(source:HexagonalCoordinates,target:HexagonalCoordinates):
-    result:set[HexagonalCoordinates] = set()
-    for x in keep_radius_offsets[get_hexes_by_axis(source,target)]:
-        tmp:HexagonalCoordinates = x
-        result.add(source+tmp)
-    return result
-reducing_radius_offsets=  np.array([
-    {HexagonalCoordinates(0,1)},
-    {HexagonalCoordinates(0,1),HexagonalCoordinates(1,0)},
-    {HexagonalCoordinates(1,0)},
-    {HexagonalCoordinates(1,0),HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(1,-1),HexagonalCoordinates(0,-1)},
-    {HexagonalCoordinates(0,-1)},
-    {HexagonalCoordinates(0,-1),HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(-1,0),HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(-1,1),HexagonalCoordinates(0,1)}
-    ],dtype=object)
-def reduce_radius(source:HexagonalCoordinates,target:HexagonalCoordinates):
-    result:set[HexagonalCoordinates] = set()
-    for x in reducing_radius_offsets[get_hexes_by_axis(source,target)]:
-        tmp:HexagonalCoordinates = x
+
+keep_radius_offsets = np.array([
+    {HexagonalCoordinates(-1, 1), HexagonalCoordinates(1, 0)},
+    {HexagonalCoordinates(-1, 1), HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(0, 1), HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(0, 1), HexagonalCoordinates(0, -1)},
+    {HexagonalCoordinates(1, 0), HexagonalCoordinates(0, -1)},
+    {HexagonalCoordinates(1, 0), HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(1, -1), HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(1, -1), HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(0, -1), HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(0, -1), HexagonalCoordinates(0, 1)},
+    {HexagonalCoordinates(-1, 0), HexagonalCoordinates(0, 1)},
+    {HexagonalCoordinates(-1, 0), HexagonalCoordinates(1, 0)}
+], dtype=object)
+
+
+def keep_radius(source: HexagonalCoordinates, target: HexagonalCoordinates):
+    result: set[HexagonalCoordinates] = set()
+    for x in keep_radius_offsets[get_hexes_by_axis(source, target)]:
+        tmp: HexagonalCoordinates = x
         result.add(source+tmp)
     return result
 
-reducing_or_keep_radius_offsets=  keep_radius_offsets | reducing_radius_offsets
-def reduce_or_keep_radius(source:HexagonalCoordinates,target:HexagonalCoordinates):
-    result:set[HexagonalCoordinates] = set()
-    for x in reducing_or_keep_radius_offsets[get_hexes_by_axis(source,target)]:
-        tmp:HexagonalCoordinates = x
+
+reducing_radius_offsets = np.array([
+    {HexagonalCoordinates(0, 1)},
+    {HexagonalCoordinates(0, 1), HexagonalCoordinates(1, 0)},
+    {HexagonalCoordinates(1, 0)},
+    {HexagonalCoordinates(1, 0), HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(1, -1), HexagonalCoordinates(0, -1)},
+    {HexagonalCoordinates(0, -1)},
+    {HexagonalCoordinates(0, -1), HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(-1, 0), HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(-1, 1), HexagonalCoordinates(0, 1)}
+], dtype=object)
+
+
+def reduce_radius(source: HexagonalCoordinates, target: HexagonalCoordinates):
+    result: set[HexagonalCoordinates] = set()
+    for x in reducing_radius_offsets[get_hexes_by_axis(source, target)]:
+        tmp: HexagonalCoordinates = x
         result.add(source+tmp)
     return result
 
-increase_radius_offsets=  np.array([
-    {HexagonalCoordinates(1,-1),HexagonalCoordinates(0,-1),HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(0,-1),HexagonalCoordinates(-1,0)},
-    {HexagonalCoordinates(0,-1),HexagonalCoordinates(-1,0),HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(-1,0),HexagonalCoordinates(-1,1)},
-    {HexagonalCoordinates(-1,0),HexagonalCoordinates(-1,1),HexagonalCoordinates(0,1)},
-    {HexagonalCoordinates(-1,1),HexagonalCoordinates(0,1)},
-    {HexagonalCoordinates(-1,1),HexagonalCoordinates(0,1),HexagonalCoordinates(1,0)},
-    {HexagonalCoordinates(0,1),HexagonalCoordinates(1,0)},
-    {HexagonalCoordinates(0,1),HexagonalCoordinates(1,0),HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(1,0),HexagonalCoordinates(1,-1)},
-    {HexagonalCoordinates(1,0),HexagonalCoordinates(1,-1),HexagonalCoordinates(0,-1)},
-    {HexagonalCoordinates(1,-1),HexagonalCoordinates(0,-1)}
-    ],dtype=object)
 
-def increase_radius(source:HexagonalCoordinates,target:HexagonalCoordinates):
-    result:set[HexagonalCoordinates] = set()
-    for x in increase_radius_offsets[get_hexes_by_axis(source,target)]:
-        tmp:HexagonalCoordinates = x
+reducing_or_keep_radius_offsets = keep_radius_offsets | reducing_radius_offsets
+
+
+def reduce_or_keep_radius(source: HexagonalCoordinates, target: HexagonalCoordinates):
+    result: set[HexagonalCoordinates] = set()
+    for x in reducing_or_keep_radius_offsets[get_hexes_by_axis(source, target)]:
+        tmp: HexagonalCoordinates = x
         result.add(source+tmp)
     return result
 
-increase_or_keep_radius_offsets=  increase_radius_offsets | keep_radius_offsets
 
-def increase_or_keep_radius(source:HexagonalCoordinates,target:HexagonalCoordinates):
-    result:set[HexagonalCoordinates] = set()
-    for x in increase_or_keep_radius_offsets[get_hexes_by_axis(source,target)]:
-        tmp:HexagonalCoordinates = x
+increase_radius_offsets = np.array([
+    {HexagonalCoordinates(1, -1), HexagonalCoordinates(0, -1),
+     HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(0, -1), HexagonalCoordinates(-1, 0)},
+    {HexagonalCoordinates(0, -1), HexagonalCoordinates(-1,
+                                                       0), HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(-1, 0), HexagonalCoordinates(-1, 1)},
+    {HexagonalCoordinates(-1, 0), HexagonalCoordinates(-1,
+                                                       1), HexagonalCoordinates(0, 1)},
+    {HexagonalCoordinates(-1, 1), HexagonalCoordinates(0, 1)},
+    {HexagonalCoordinates(-1, 1), HexagonalCoordinates(0,
+                                                       1), HexagonalCoordinates(1, 0)},
+    {HexagonalCoordinates(0, 1), HexagonalCoordinates(1, 0)},
+    {HexagonalCoordinates(0, 1), HexagonalCoordinates(
+        1, 0), HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(1, 0), HexagonalCoordinates(1, -1)},
+    {HexagonalCoordinates(1, 0), HexagonalCoordinates(
+        1, -1), HexagonalCoordinates(0, -1)},
+    {HexagonalCoordinates(1, -1), HexagonalCoordinates(0, -1)}
+], dtype=object)
+
+
+def increase_radius(source: HexagonalCoordinates, target: HexagonalCoordinates):
+    result: set[HexagonalCoordinates] = set()
+    for x in increase_radius_offsets[get_hexes_by_axis(source, target)]:
+        tmp: HexagonalCoordinates = x
         result.add(source+tmp)
     return result
 
-def is_shooting_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordinates,blockages:set[HexagonalCoordinates]):
+
+increase_or_keep_radius_offsets = increase_radius_offsets | keep_radius_offsets
+
+
+def increase_or_keep_radius(source: HexagonalCoordinates, target: HexagonalCoordinates):
+    result: set[HexagonalCoordinates] = set()
+    for x in increase_or_keep_radius_offsets[get_hexes_by_axis(source, target)]:
+        tmp: HexagonalCoordinates = x
+        result.add(source+tmp)
+    return result
+
+
+def is_shooting_line_blocked(source: HexagonalCoordinates, target: HexagonalCoordinates, blockages: set[HexagonalCoordinates]):
     if source.x == target.x:
         min_y = min(source.y, target.y)
         max_y = max(source.y, target.y)
         for y in range(min_y+1, max_y):
             if HexagonalCoordinates(source.x, y) in blockages:
                 return True
-    elif source.y==target.y:
+    elif source.y == target.y:
         min_x = min(source.x, target.x)
         max_x = max(source.x, target.x)
         for x in range(min_x+1, max_x):
-            if HexagonalCoordinates(x,source.y) in blockages:
+            if HexagonalCoordinates(x, source.y) in blockages:
                 return True
     elif source.z == target.z:
         min_x = min(source.x, target.x)
@@ -297,10 +325,12 @@ def is_shooting_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordin
             if HexagonalCoordinates(x, -1*x-source.z) in blockages:
                 return True
     return False
-def is_wizard_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordinates,blockages:set[HexagonalCoordinates],demons:set[HexagonalCoordinates]):
+
+
+def is_wizard_line_blocked(source: HexagonalCoordinates, target: HexagonalCoordinates, blockages: set[HexagonalCoordinates], demons: set[HexagonalCoordinates]):
     wizard_range = 5
     if source.x == target.x:
-        if source.y>target.y:
+        if source.y > target.y:
             check_for_demons_y = source.y-wizard_range
             for y in range(target.y+1, source.y):
                 if HexagonalCoordinates(source.x, y) in blockages:
@@ -316,8 +346,8 @@ def is_wizard_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordinat
             for y in range(target.y+1, check_for_demons_y+1):
                 if HexagonalCoordinates(source.x, y) in demons:
                     return True
-    elif source.y==target.y:
-        if source.x>target.x:
+    elif source.y == target.y:
+        if source.x > target.x:
             check_for_demons_x = source.x-wizard_range
             for x in range(target.x+1, source.x):
                 if HexagonalCoordinates(x, source.y) in blockages:
@@ -334,7 +364,7 @@ def is_wizard_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordinat
                 if HexagonalCoordinates(x, source.y) in demons:
                     return True
     elif source.z == target.z:
-        if source.x>target.x:
+        if source.x > target.x:
             check_for_demons_x = source.x-wizard_range
             for x in range(target.x+1, source.x):
                 if HexagonalCoordinates(x, -1*x-source.z) in blockages:
@@ -352,22 +382,27 @@ def is_wizard_line_blocked(source:HexagonalCoordinates,target:HexagonalCoordinat
                     return True
     return False
 
-def is_in_line(source:HexagonalCoordinates,target:HexagonalCoordinates)->bool:
-    return source.x == target.x or source.y==target.y or source.z == target.z
+
+def is_in_line(source: HexagonalCoordinates, target: HexagonalCoordinates) -> bool:
+    return source.x == target.x or source.y == target.y or source.z == target.z
 
 
 class Archer(Demon):
     ARCHER_PERFECT_RADIUS = 3
+
     def __init__(self, position: HexagonalCoordinates) -> None:
         super().__init__(position)
-    def in_archer_radius(self,radius):
-        return radius>1 and radius<6
+
+    def in_archer_radius(self, radius):
+        return radius > 1 and radius < 6
+
     def get_all_moves(self, terrain: Terrain):
         """remember about deleting spear and stairs moves"""
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        blockages:set[HexagonalCoordinates] = set(terrain.demons.keys())-{self.position}
-        secondary_collisions:set[HexagonalCoordinates] = set()
+        radius = hexagonal_distance(self.position, player)
+        blockages: set[HexagonalCoordinates] = set(
+            terrain.demons.keys())-{self.position}
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
@@ -378,76 +413,87 @@ class Archer(Demon):
             blockages.add(terrain.fleece)
         if terrain.portal:
             blockages.add(terrain.portal)
-        if is_in_line(self.position,player):
+        if is_in_line(self.position, player):
             if self.in_archer_radius(radius):
-                if not is_shooting_line_blocked(self.position,player,blockages):
-                    return frozenset({Attack(self.position)}) 
+                if not is_shooting_line_blocked(self.position, player, blockages):
+                    return frozenset({Attack(self.position)})
         # from now archer cannot shoot
-        shooting_line_neighbours = {x for x in hexagonal_neighbors(self.position) if terrain.walkable(x) and x not in blockages and self.in_archer_radius(hexagonal_distance(x,player)) and is_in_line(x,player) and not is_shooting_line_blocked(x,terrain.player,blockages)}
+        shooting_line_neighbours = {x for x in hexagonal_neighbors(self.position) if terrain.walkable(x) and x not in blockages and self.in_archer_radius(
+            hexagonal_distance(x, player)) and is_in_line(x, player) and not is_shooting_line_blocked(x, terrain.player, blockages)}
         # from now seondary_collisions are collisions
-        all_collisions = secondary_collisions|blockages
-        if radius>self.ARCHER_PERFECT_RADIUS:
-            a = {x for x in reduce_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        all_collisions = secondary_collisions | blockages
+        if radius > self.ARCHER_PERFECT_RADIUS:
+            a = {x for x in reduce_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
-        elif radius==self.ARCHER_PERFECT_RADIUS:
-            a = {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        elif radius == self.ARCHER_PERFECT_RADIUS:
+            a = {x for x in keep_radius(self.position, player) if terrain.walkable(
+                x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
-        else: # radius<self.ARCHER_PERFECT_RADIUS
-            a = {x for x in increase_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        else:  # radius<self.ARCHER_PERFECT_RADIUS
+            a = {x for x in increase_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
 
     def get_moves(self, terrain: Terrain, collisions: set[HexagonalCoordinates]):
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        blockages:set[HexagonalCoordinates] = set(terrain.demons.keys())-{self.position}
+        radius = hexagonal_distance(self.position, player)
+        blockages: set[HexagonalCoordinates] = set(
+            terrain.demons.keys())-{self.position}
         if terrain.altar:
             blockages.add(terrain.altar)
         if terrain.fleece:
             blockages.add(terrain.fleece)
         if terrain.portal:
             blockages.add(terrain.portal)
-        real_collisions = blockages | collisions|{player}
-        if is_in_line(self.position,player):
+        real_collisions = blockages | collisions | {player}
+        if is_in_line(self.position, player):
             if self.in_archer_radius(radius):
-                if not is_shooting_line_blocked(self.position,player,blockages):
-                    return frozenset({Attack(self.position)}) 
-        secondary_collisions:set[HexagonalCoordinates] = set()
+                if not is_shooting_line_blocked(self.position, player, blockages):
+                    return frozenset({Attack(self.position)})
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
             secondary_collisions.add(terrain.spear)
-        
-        nearest: DefaultDict[int,set[HexagonalCoordinates]] = defaultdict(set)
-        secondary_nearest: DefaultDict[int,set[HexagonalCoordinates]] = defaultdict(set)
+
+        nearest: DefaultDict[int, set[HexagonalCoordinates]] = defaultdict(set)
+        secondary_nearest: DefaultDict[int,
+                                       set[HexagonalCoordinates]] = defaultdict(set)
         for neighbor in hexagonal_neighbors(self.position):
             if terrain.walkable(neighbor):
                 if neighbor not in real_collisions:
-                    if is_in_line(neighbor,player):
-                        dist = hexagonal_distance(neighbor,player)
-                        if self.in_archer_radius((dist := hexagonal_distance(neighbor,player))):
-                            if not is_shooting_line_blocked(neighbor,terrain.player,blockages):
+                    if is_in_line(neighbor, player):
+                        dist = hexagonal_distance(neighbor, player)
+                        if self.in_archer_radius((dist := hexagonal_distance(neighbor, player))):
+                            if not is_shooting_line_blocked(neighbor, terrain.player, blockages):
                                 if neighbor not in secondary_collisions:
-                                    nearest[abs(dist-self.ARCHER_PERFECT_RADIUS)].add(neighbor)
+                                    nearest[abs(
+                                        dist-self.ARCHER_PERFECT_RADIUS)].add(neighbor)
                                 else:
-                                    secondary_nearest[abs(dist-self.ARCHER_PERFECT_RADIUS)].add(neighbor)
+                                    secondary_nearest[abs(
+                                        dist-self.ARCHER_PERFECT_RADIUS)].add(neighbor)
         if nearest.keys():
-            return frozenset({Walk(self.position,y) for y in nearest[min(nearest.keys())]})
-    
+            return frozenset({Walk(self.position, y) for y in nearest[min(nearest.keys())]})
+
         if secondary_nearest.keys():
-            return frozenset({Walk(self.position,y) for y in secondary_nearest[min(secondary_nearest.keys())]})
+            return frozenset({Walk(self.position, y) for y in secondary_nearest[min(secondary_nearest.keys())]})
         # from now archer doesn't stand on stairs and javelin
         all_collisions = secondary_collisions | real_collisions
-        if radius>self.ARCHER_PERFECT_RADIUS:
-            if (a := {x for x in reduce_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        elif radius<self.ARCHER_PERFECT_RADIUS:
-            if (a := {x for x in increase_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        if (a := {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-            return frozenset({Walk(self.position,y) for y in a})
+        if radius > self.ARCHER_PERFECT_RADIUS:
+            if (a := {x for x in reduce_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        elif radius < self.ARCHER_PERFECT_RADIUS:
+            if (a := {x for x in increase_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        if (a := {x for x in keep_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+            return frozenset({Walk(self.position, y) for y in a})
         return frozenset({Wait(self.position)})
 # class Archer:
 #     def get_primary_moves(self, position: HexagonalCoordinates, terrain: Terrain,collisions:set[HexagonalCoordinates]):
@@ -475,18 +521,22 @@ class Archer(Demon):
 
 class Wizard(Demon):
     WIZARD_PERFECT_RADIUS = 3
-    def __init__(self, position: HexagonalCoordinates,charged:bool) -> None:
+
+    def __init__(self, position: HexagonalCoordinates, charged: bool) -> None:
         super().__init__(position)
-        self.charged:bool = charged
-    def in_wizard_radius(self,radius):
-        return radius<6
+        self.charged: bool = charged
+
+    def in_wizard_radius(self, radius):
+        return radius < 6
+
     def get_all_moves(self, terrain: Terrain):
         """remember about deleting spear and stairs moves"""
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        demons :set[HexagonalCoordinates] = set(terrain.demons.keys())-{self.position}
-        blockages:set[HexagonalCoordinates] = set()|demons
-        secondary_collisions:set[HexagonalCoordinates] = set()
+        radius = hexagonal_distance(self.position, player)
+        demons: set[HexagonalCoordinates] = set(
+            terrain.demons.keys())-{self.position}
+        blockages: set[HexagonalCoordinates] = set() | demons
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
@@ -498,37 +548,45 @@ class Wizard(Demon):
         if terrain.portal:
             blockages.add(terrain.portal)
 
-        if is_in_line(self.position,player):
+        if is_in_line(self.position, player):
             if self.in_wizard_radius(radius):
                 if self.charged:
-                    if not is_wizard_line_blocked(self.position,player,blockages,demons):
-                        return frozenset({Attack(self.position)}) 
+                    if not is_wizard_line_blocked(self.position, player, blockages, demons):
+                        return frozenset({Attack(self.position)})
                 else:
-                    if radius==self.WIZARD_PERFECT_RADIUS:
+                    if radius == self.WIZARD_PERFECT_RADIUS:
                         return frozenset({Wait(self.position)})
 
         # from now archer cannot shoot
-        shooting_line_neighbours = {x for x in hexagonal_neighbors(self.position) if terrain.walkable(x) and x not in blockages and self.in_wizard_radius(hexagonal_distance(x,player)) and is_in_line(x,player) and not is_wizard_line_blocked(x,terrain.player,blockages,demons)}
+        shooting_line_neighbours = {x for x in hexagonal_neighbors(self.position) if terrain.walkable(x) and x not in blockages and self.in_wizard_radius(
+            hexagonal_distance(x, player)) and is_in_line(x, player) and not is_wizard_line_blocked(x, terrain.player, blockages, demons)}
         # from now seondary_collisions are collisions
-        all_collisions = blockages|secondary_collisions
-        if radius>self.WIZARD_PERFECT_RADIUS:
-            a = {x for x in reduce_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        all_collisions = blockages | secondary_collisions
+        if radius > self.WIZARD_PERFECT_RADIUS:
+            a = {x for x in reduce_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
-        elif radius==self.WIZARD_PERFECT_RADIUS:
-            a = {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        elif radius == self.WIZARD_PERFECT_RADIUS:
+            a = {x for x in keep_radius(self.position, player) if terrain.walkable(
+                x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
-        else: # radius<self.ARCHER_PERFECT_RADIUS
-            a = {x for x in increase_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a|shooting_line_neighbours})|{Wait(self.position)}
+        else:  # radius<self.ARCHER_PERFECT_RADIUS
+            a = {x for x in increase_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset(
+                {Walk(self.position, x) for x in a | shooting_line_neighbours}) | {Wait(self.position)}
             return resulting_actions
 
     def get_moves(self, terrain: Terrain, collisions: set[HexagonalCoordinates]):
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        demons :set[HexagonalCoordinates] = set(terrain.demons.keys())-{self.position}
-        blockages:set[HexagonalCoordinates] = set()|demons
+        radius = hexagonal_distance(self.position, player)
+        demons: set[HexagonalCoordinates] = set(
+            terrain.demons.keys())-{self.position}
+        blockages: set[HexagonalCoordinates] = set() | demons
         if terrain.altar:
             blockages.add(terrain.altar)
         if terrain.fleece:
@@ -536,66 +594,72 @@ class Wizard(Demon):
         if terrain.portal:
             blockages.add(terrain.portal)
         real_collisions = blockages | collisions
-        if is_in_line(self.position,player):
+        if is_in_line(self.position, player):
             if self.in_wizard_radius(radius):
                 if self.charged:
-                    if not is_wizard_line_blocked(self.position,player,blockages,demons):
-                        return frozenset({Attack(self.position)}) 
+                    if not is_wizard_line_blocked(self.position, player, blockages, demons):
+                        return frozenset({Attack(self.position)})
                 else:
-                    if radius==self.WIZARD_PERFECT_RADIUS:
+                    if radius == self.WIZARD_PERFECT_RADIUS:
                         return frozenset({Wait(self.position)})
-        secondary_collisions:set[HexagonalCoordinates] = set()
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
             secondary_collisions.add(terrain.spear)
-        
-        nearest: DefaultDict[int,set[HexagonalCoordinates]] = defaultdict(set)
-        secondary_nearest: DefaultDict[int,set[HexagonalCoordinates]] = defaultdict(set)
+
+        nearest: DefaultDict[int, set[HexagonalCoordinates]] = defaultdict(set)
+        secondary_nearest: DefaultDict[int,
+                                       set[HexagonalCoordinates]] = defaultdict(set)
         for neighbor in hexagonal_neighbors(self.position):
             if terrain.walkable(neighbor):
                 if neighbor not in real_collisions:
-                    if is_in_line(neighbor,player):
-                        dist = hexagonal_distance(neighbor,player)
-                        if self.in_wizard_radius((dist := hexagonal_distance(neighbor,player))):
-                            if not is_wizard_line_blocked(neighbor,terrain.player,blockages,demons):
+                    if is_in_line(neighbor, player):
+                        dist = hexagonal_distance(neighbor, player)
+                        if self.in_wizard_radius((dist := hexagonal_distance(neighbor, player))):
+                            if not is_wizard_line_blocked(neighbor, terrain.player, blockages, demons):
                                 if neighbor not in secondary_collisions:
-                                    nearest[abs(dist-self.WIZARD_PERFECT_RADIUS)].add(neighbor)
+                                    nearest[abs(
+                                        dist-self.WIZARD_PERFECT_RADIUS)].add(neighbor)
                                 else:
-                                    secondary_nearest[abs(dist-self.WIZARD_PERFECT_RADIUS)].add(neighbor)
+                                    secondary_nearest[abs(
+                                        dist-self.WIZARD_PERFECT_RADIUS)].add(neighbor)
         if nearest.keys():
-            return frozenset({Walk(self.position,y) for y in nearest[min(nearest.keys())]})
-    
+            return frozenset({Walk(self.position, y) for y in nearest[min(nearest.keys())]})
+
         if secondary_nearest.keys():
-            return frozenset({Walk(self.position,y) for y in secondary_nearest[min(secondary_nearest.keys())]})
+            return frozenset({Walk(self.position, y) for y in secondary_nearest[min(secondary_nearest.keys())]})
         # from now archer doesn't stand on stairs and javelin
         all_collisions = secondary_collisions | real_collisions
-        if radius>self.WIZARD_PERFECT_RADIUS:
-            if (a := {x for x in reduce_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        elif radius<self.WIZARD_PERFECT_RADIUS:
-            if (a := {x for x in increase_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        if (a := {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-            return frozenset({Walk(self.position,y) for y in a})
+        if radius > self.WIZARD_PERFECT_RADIUS:
+            if (a := {x for x in reduce_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        elif radius < self.WIZARD_PERFECT_RADIUS:
+            if (a := {x for x in increase_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        if (a := {x for x in keep_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+            return frozenset({Walk(self.position, y) for y in a})
         return frozenset({Wait(self.position)})
 
 
 class Demolitionist(Demon):
     DEMOLITIONIST_PERFECT_RADIUS = 3
     DEMOLITIONIST_RADIUS = 3
-    def __init__(self, position: HexagonalCoordinates,cooldown:int) -> None:
+
+    def __init__(self, position: HexagonalCoordinates, cooldown: int) -> None:
         super().__init__(position)
-        self.cooldown:int = cooldown
-    def in_radius(self,radius):
-        return radius<5
+        self.cooldown: int = cooldown
+
+    def in_radius(self, radius):
+        return radius < 5
+
     def get_all_moves(self, terrain: Terrain):
         """remember about deleting spear and stairs moves"""
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        demons :set[HexagonalCoordinates] = set(terrain.demons.keys())
-        blockages:set[HexagonalCoordinates] = set()|demons
-        secondary_collisions:set[HexagonalCoordinates] = set()
+        radius = hexagonal_distance(self.position, player)
+        demons: set[HexagonalCoordinates] = set(terrain.demons.keys())
+        blockages: set[HexagonalCoordinates] = set() | demons
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
@@ -610,31 +674,39 @@ class Demolitionist(Demon):
         # attack logic
         if not self.cooldown:
             if self.in_radius(radius):
-                bomb_destinations = {destination for destination in hexagonal_neighbors(player) if terrain.walkable(destination) and destination not in blockages and hexagonal_distance(self.position,destination)<=self.DEMOLITIONIST_RADIUS and all(in_explosion_range not in demons for in_explosion_range in hexagonal_neighbors(destination))}
+                bomb_destinations = {destination for destination in hexagonal_neighbors(player) if terrain.walkable(destination) and destination not in blockages and hexagonal_distance(
+                    self.position, destination) <= self.DEMOLITIONIST_RADIUS and all(in_explosion_range not in demons for in_explosion_range in hexagonal_neighbors(destination))}
                 if bomb_destinations:
-                    return frozenset({Bomb(self.position,destination) for destination in bomb_destinations})
+                    return frozenset({Bomb(self.position, destination) for destination in bomb_destinations})
 
         # from now archer cannot shoot
         # from now seondary_collisions are collisions
-        all_collisions = blockages|secondary_collisions
-        if radius>self.DEMOLITIONIST_PERFECT_RADIUS:
-            a = {x for x in reduce_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a})|{Wait(self.position)}
+        all_collisions = blockages | secondary_collisions
+        if radius > self.DEMOLITIONIST_PERFECT_RADIUS:
+            a = {x for x in reduce_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset({Walk(self.position, x) for x in a}) | {
+                Wait(self.position)}
             return resulting_actions
-        elif radius==self.DEMOLITIONIST_PERFECT_RADIUS:
-            a = {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a})|{Wait(self.position)}
+        elif radius == self.DEMOLITIONIST_PERFECT_RADIUS:
+            a = {x for x in keep_radius(self.position, player) if terrain.walkable(
+                x) and x not in all_collisions}
+            resulting_actions = frozenset({Walk(self.position, x) for x in a}) | {
+                Wait(self.position)}
             return resulting_actions
-        else: # radius<self.ARCHER_PERFECT_RADIUS
-            a = {x for x in increase_or_keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions }
-            resulting_actions = frozenset({Walk(self.position,x) for x in a})|{Wait(self.position)}
+        else:  # radius<self.ARCHER_PERFECT_RADIUS
+            a = {x for x in increase_or_keep_radius(
+                self.position, player) if terrain.walkable(x) and x not in all_collisions}
+            resulting_actions = frozenset({Walk(self.position, x) for x in a}) | {
+                Wait(self.position)}
             return resulting_actions
 
     def get_moves(self, terrain: Terrain, collisions: set[HexagonalCoordinates]):
         player = terrain.player
-        radius = hexagonal_distance(self.position,player)
-        demons :set[HexagonalCoordinates] = set(terrain.demons.keys())-{self.position}
-        blockages:set[HexagonalCoordinates] = set()|demons
+        radius = hexagonal_distance(self.position, player)
+        demons: set[HexagonalCoordinates] = set(
+            terrain.demons.keys())-{self.position}
+        blockages: set[HexagonalCoordinates] = set() | demons
         if terrain.altar:
             blockages.add(terrain.altar)
         if terrain.fleece:
@@ -643,26 +715,28 @@ class Demolitionist(Demon):
             blockages.add(terrain.portal)
         if not self.cooldown:
             if self.in_radius(radius):
-                bomb_destinations = {destination for destination in hexagonal_neighbors(player) if terrain.walkable(destination) and destination not in blockages and hexagonal_distance(self.position,destination)<=self.DEMOLITIONIST_RADIUS and all(in_explosion_range not in demons for in_explosion_range in hexagonal_neighbors(destination))}
+                bomb_destinations = {destination for destination in hexagonal_neighbors(player) if terrain.walkable(destination) and destination not in blockages and hexagonal_distance(
+                    self.position, destination) <= self.DEMOLITIONIST_RADIUS and all(in_explosion_range not in demons for in_explosion_range in hexagonal_neighbors(destination))}
                 if bomb_destinations:
-                    return frozenset({Bomb(self.position,destination) for destination in bomb_destinations})
-        secondary_collisions:set[HexagonalCoordinates] = set()
+                    return frozenset({Bomb(self.position, destination) for destination in bomb_destinations})
+        secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
             secondary_collisions.add(terrain.spear)
-        
+
         # from now archer doesn't stand on stairs and javelin
         all_collisions = secondary_collisions | blockages | collisions
-        if radius>self.DEMOLITIONIST_PERFECT_RADIUS:
-            if (a := {x for x in reduce_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        elif radius<self.DEMOLITIONIST_PERFECT_RADIUS:
-            if (a := {x for x in increase_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-                return frozenset({Walk(self.position,y) for y in a})
-        if (a := {x for x in keep_radius(self.position,player) if terrain.walkable(x) and x not in all_collisions}):
-            return frozenset({Walk(self.position,y) for y in a})
+        if radius > self.DEMOLITIONIST_PERFECT_RADIUS:
+            if (a := {x for x in reduce_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        elif radius < self.DEMOLITIONIST_PERFECT_RADIUS:
+            if (a := {x for x in increase_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+                return frozenset({Walk(self.position, y) for y in a})
+        if (a := {x for x in keep_radius(self.position, player) if terrain.walkable(x) and x not in all_collisions}):
+            return frozenset({Walk(self.position, y) for y in a})
         return frozenset({Wait(self.position)})
+
 
 T = TypeVar('T')
 
@@ -733,7 +807,7 @@ def get_all_possible_moves(pre_game_state: hoplite.game.state.GameState, player_
         all_combinations.update({unordered_demons_moves_set.union(ordered_demons_moves_set)
                                 for unordered_demons_moves_set in unordered_demons_moves for _, ordered_demons_moves_set in ordered_demons_moves})
     all_combination_combined: set[Action] = set().union(*all_combinations)
-    return all_combination_combined,apply_actions(game_state,all_combinations)
+    return all_combination_combined, apply_actions(game_state, all_combinations)
 
 
 # %%
@@ -744,7 +818,7 @@ class Colors:
     BLUE = [.2, .6, 1., 1.]
     ORANGE = [1, .6, .1, 1.]
     RED = [1., 0., 0., 1.]
-    BLACK = [0.,0.,0.,0.]
+    BLACK = [0., 0., 0., 0.]
 
 
 def circle(array: ndarray, position: HexagonalCoordinates, color: list[float], diameter: int = 50, corner: int = 500):
@@ -904,7 +978,17 @@ for suffix in ["fail", "success"]:
         exist_ok=True
     )
 # %%
-limit = 20
+limit = 1000
+
+
+def get_difference(first: hoplite.game.state.GameState, correct: hoplite.game.state.GameState):
+
+    a = set(first.terrain.demons.keys())
+
+    correct_position = set(correct.terrain.demons.keys())
+
+    return sum([aa not in correct_position for aa in a])
+
 
 for folder in glob.glob(os.path.join(RECORDINGS_FOLDER, "*")):
     i = 0
@@ -918,7 +1002,7 @@ for folder in glob.glob(os.path.join(RECORDINGS_FOLDER, "*")):
     for turn, prev_state, next_state, move in parse(get_pairs(lines)):
         # predict state
         # check state
-        possible_moves,next_states = get_all_possible_moves(prev_state, move)
+        possible_moves, next_states = get_all_possible_moves(prev_state, move)
         screenshot = transform(
             prev_state,
             next_state,
@@ -929,6 +1013,9 @@ for folder in glob.glob(os.path.join(RECORDINGS_FOLDER, "*")):
             break
         i += 1
         error = next_state not in next_states
+        if error:
+            print("error", min(get_difference(state, next_state)
+                  for state in next_states))
         matplotlib.image.imsave(
             ofn(folder, turn, error),
             screenshot

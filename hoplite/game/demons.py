@@ -66,11 +66,11 @@ class Demon:  # pylint: disable=R0903
                 if self.min_range <= dist < self.max_range:
                     line_targets.add(pos)
                 if dist == self.max_range - 1\
-                    or pos == terrain.altar\
-                    or pos in terrain.demons:
+                        or pos == terrain.altar\
+                        or pos in terrain.demons:
                     break
             if not self.careful\
-                or len(line_targets.intersection(terrain.demons)) == 0:
+                    or len(line_targets.intersection(terrain.demons)) == 0:
                 targets = targets.union(line_targets)
         return targets.intersection(hoplite.utils.SURFACE_COORDINATES)
 
@@ -91,6 +91,9 @@ class Demon:  # pylint: disable=R0903
 
         """
         raise NotImplementedError
+
+    def not_attack(self):
+        pass
 
 
 class Footman(Demon):  # pylint: disable=R0903
@@ -125,23 +128,25 @@ class Demolitionist(Demon):  # pylint: disable=R0903
     """
     Demolitionist demon. Throws bombs.
     """
-    COOLDOWN_AFTER_BOMB=2
-    def __init__(self, cooldown:int=0):
+    COOLDOWN_AFTER_BOMB = 2
+
+    def __init__(self, cooldown: int = 0):
         Demon.__init__(self, DemonSkill.DEMOLITIONIST)
         self.holds_bomb = not cooldown
         self.cooldown = cooldown
-    
+
     def throw_bomb(self):
         self.cooldown = self.COOLDOWN_AFTER_BOMB
-        self.holds_bomb = False   
+        self.holds_bomb = False
 
-    def attack(self, game_state:'GameState', demon_pos):
-        if self.cooldown>0:
-            self.cooldown -= 1
-        else:
-            self.holds_bomb = True         
+    def attack(self, game_state: 'GameState', demon_pos):
         return 0
-        
+
+    def not_attack(self):
+        if self.cooldown > 0:
+            self.cooldown -= 1
+        if not self.cooldown:
+            self.holds_bomb = True
 
 
 class Wizard(Demon):  # pylint: disable=R0903
@@ -153,9 +158,13 @@ class Wizard(Demon):  # pylint: disable=R0903
         Demon.__init__(self, DemonSkill.WIZARD, 0, 5, True)
         self.charged_wand = charged_wand
 
+    def throw_spell(self):
+        self.charged_wand = False
+
     def attack(self, game_state, demon_pos):
-        if game_state.terrain.player in self.range(game_state.terrain, demon_pos):
-            self.charged_wand = False
+        if self.charged_wand and game_state.terrain.player in self.range(game_state.terrain, demon_pos):
             return 1
-        self.charged_wand = True
         return 0
+
+    def not_attack(self):
+        self.charged_wand = True
