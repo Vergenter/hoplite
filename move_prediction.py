@@ -535,19 +535,19 @@ class Wizard(Demon):
         radius = hexagonal_distance(self.position, player)
         demons: set[HexagonalCoordinates] = set(
             terrain.demons.keys())-{self.position}
-        blockages: set[HexagonalCoordinates] = set() | demons
         secondary_collisions: set[HexagonalCoordinates] = set()
         if terrain.stairs:
             secondary_collisions.add(terrain.stairs)
         if terrain.spear:
             secondary_collisions.add(terrain.spear)
+        static_blockages:set[HexagonalCoordinates] = set()
         if terrain.altar:
-            blockages.add(terrain.altar)
+            static_blockages.add(terrain.altar)
         if terrain.fleece:
-            blockages.add(terrain.fleece)
+            static_blockages.add(terrain.fleece)
         if terrain.portal:
-            blockages.add(terrain.portal)
-
+            static_blockages.add(terrain.portal)
+        blockages: set[HexagonalCoordinates] = set() | demons | static_blockages
         if is_in_line(self.position, player):
             if self.in_wizard_radius(radius):
                 if self.charged:
@@ -559,7 +559,7 @@ class Wizard(Demon):
 
         # from now archer cannot shoot
         shooting_line_neighbours = {x for x in hexagonal_neighbors(self.position) if terrain.walkable(x) and x not in blockages and self.in_wizard_radius(
-            hexagonal_distance(x, player)) and is_in_line(x, player) and not is_wizard_line_blocked(x, terrain.player, blockages, demons)}
+            hexagonal_distance(x, player)) and is_in_line(x, player) and not is_shooting_line_blocked(x, terrain.player, static_blockages)}
         # from now seondary_collisions are collisions
         all_collisions = blockages | secondary_collisions
         if radius > self.WIZARD_PERFECT_RADIUS:
@@ -586,13 +586,14 @@ class Wizard(Demon):
         radius = hexagonal_distance(self.position, player)
         demons: set[HexagonalCoordinates] = set(
             terrain.demons.keys())-{self.position}
-        blockages: set[HexagonalCoordinates] = set() | demons
+        static_blockages:set[HexagonalCoordinates] = set()
         if terrain.altar:
-            blockages.add(terrain.altar)
+            static_blockages.add(terrain.altar)
         if terrain.fleece:
-            blockages.add(terrain.fleece)
+            static_blockages.add(terrain.fleece)
         if terrain.portal:
-            blockages.add(terrain.portal)
+            static_blockages.add(terrain.portal)
+        blockages: set[HexagonalCoordinates] = set() | demons | static_blockages
         real_collisions = blockages | collisions
         if is_in_line(self.position, player):
             if self.in_wizard_radius(radius):
@@ -617,7 +618,7 @@ class Wizard(Demon):
                     if is_in_line(neighbor, player):
                         dist = hexagonal_distance(neighbor, player)
                         if self.in_wizard_radius((dist := hexagonal_distance(neighbor, player))):
-                            if not is_wizard_line_blocked(neighbor, terrain.player, blockages, demons):
+                            if not is_shooting_line_blocked(neighbor, terrain.player, static_blockages):
                                 if neighbor not in secondary_collisions:
                                     nearest[abs(
                                         dist-self.WIZARD_PERFECT_RADIUS)].add(neighbor)
