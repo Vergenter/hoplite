@@ -145,6 +145,7 @@ class PlayerMove:
 
         """
         next_state = prev_state.copy()
+        next_state.status.cooldown = max(0, next_state.status.cooldown-1)
         self._apply(prev_state, next_state)
         self._apply_damages(next_state)
         if hoplite.game.status.Prayer.BLOODLUST in next_state.status.prayers:
