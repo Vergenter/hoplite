@@ -40,8 +40,8 @@ class GameState:
         Logical representation of the terrain.
     status : hoplite.game.status.Status
         Logical representation of the player status.
-
     """
+
 
     def __init__(self):
         self.depth = 1

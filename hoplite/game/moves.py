@@ -4,7 +4,7 @@
 import logging
 import hoplite.game.attacks
 import hoplite.game.terrain
-
+import hoplite.utils
 
 LOGGER = logging.getLogger(__name__)
 

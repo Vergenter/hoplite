@@ -1,5 +1,6 @@
 # %%
 # Imports
+import pstats
 import networkx as nx
 import numpy as np
 import numpy.typing
@@ -24,7 +25,7 @@ import hoplite.game.moves
 import hoplite.actuator
 import itertools
 import functools
-from operator import methodcaller
+import cProfile
 # %%
 # Main script configuration
 OUTPUT_DIRECTORY = "draft/walk"
@@ -990,36 +991,42 @@ def get_difference(first: hoplite.game.state.GameState, correct: hoplite.game.st
 
     return sum([aa not in correct_position for aa in a])
 
+if __name__ == "__main__":
+    for folder in glob.glob(os.path.join(RECORDINGS_FOLDER, "*")):
+        i = 0
+        filename = os.path.join(folder, LOG_FILENAME)
+        print(filename)
+        try:
+            with open(filename, encoding='utf-8') as file:
+                lines = file.readlines()
+        except FileNotFoundError:
+            continue
+        for turn, prev_state, next_state, move in parse(get_pairs(lines)):
+            if turn != 227:
+                continue
 
-for folder in glob.glob(os.path.join(RECORDINGS_FOLDER, "*")):
-    i = 0
-    filename = os.path.join(folder, LOG_FILENAME)
-    print(filename)
-    try:
-        with open(filename, encoding='utf-8') as file:
-            lines = file.readlines()
-    except FileNotFoundError:
-        continue
-    for turn, prev_state, next_state, move in parse(get_pairs(lines)):
-        # predict state
-        # check state
-        possible_moves, next_states = get_all_possible_moves(prev_state, move)
-        screenshot = transform(
-            prev_state,
-            next_state,
-            possible_moves,
-            ifn(folder, turn)
-        )
-        if i > limit:
-            break
-        i += 1
-        error = next_state not in next_states
-        if error:
-            print("error", min(get_difference(state, next_state)
-                  for state in next_states))
-        matplotlib.image.imsave(
-            ofn(folder, turn, error),
-            screenshot
-        )
+            # predict state
+            # check state
+            with cProfile.Profile() as pr:
+                possible_moves, next_states = get_all_possible_moves(prev_state, move)
+            ps = pstats.Stats(pr).sort_stats(pstats.SortKey.CUMULATIVE)
+            ps.print_stats(20)
+            screenshot = transform(
+                prev_state,
+                next_state,
+                possible_moves,
+                ifn(folder, turn)
+            )
+            if i > limit:
+                break
+            i += 1
+            error = next_state not in next_states
+            if error:
+                print("error", min(get_difference(state, next_state)
+                    for state in next_states))
+            matplotlib.image.imsave(
+                ofn(folder, turn, error),
+                screenshot
+            )
 
 # %%
